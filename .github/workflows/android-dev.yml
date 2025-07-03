@@ -1,28 +1,52 @@
-name: Android CI - Dev
+name: Android CI - Prod Release
 
 on:
   push:
     branches:
-      - dev
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+      # ✅ Checkout the repo
       - uses: actions/checkout@v4
 
+      # ✅ Set up JDK 17 (required for Android builds)
       - uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
 
+      # ✅ Make Gradle wrapper executable
       - run: chmod +x ./gradlew
 
-      - run: ./gradlew assembleDevRelease
+      # ✅ Extract versionName from build.gradle
+      - name: Extract versionName
+        id: version
+        run: |
+          VERSION_NAME=$(grep versionName app/build.gradle | head -1 | awk -F'"' '{ print $2 }')
+          echo "VERSION_NAME=$VERSION_NAME"
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
 
-      - uses: actions/upload-artifact@v4
+      # ✅ Build prod APK
+      - name: Build APK
+        run: ./gradlew assembleProdRelease
+
+      # ✅ Create Git Tag (v1.0)
+      - name: Create Git Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v${{ steps.version.outputs.version_name }} || true
+          git push origin v${{ steps.version.outputs.version_name }} || true
+
+      # ✅ Create GitHub Release and upload APK
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: dev-apk
-          path: app/build/outputs/apk/dev/release/*.apk
+          tag_name: v${{ steps.version.outputs.version_name }}
+          name: "Release v${{ steps.version.outputs.version_name }}"
+          files: app/build/outputs/apk/dev/release/*.apk
 
