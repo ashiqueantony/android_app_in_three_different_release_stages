@@ -49,3 +49,84 @@ git checkout dev
 git commit -m "Update feature"
 git push origin dev
 
+GitHub Actions will:
+
+Build the dev flavor
+
+Generate dev APK
+
+Upload it as an artifact
+
+🚀 Promote to Stage / Main
+Once tested:
+
+bash
+Copy
+Edit
+# Promote to stage
+git checkout stage
+git merge dev
+git push origin stage
+
+# Promote to main (prod release)
+git checkout main
+git merge stage
+git push origin main
+main will trigger a tagged GitHub Release
+
+APK will be attached in the "Releases" tab
+
+📦 APK Location
+After each build:
+
+Go to your repository → Actions
+
+Select the latest workflow run
+
+Scroll to Artifacts or Releases (for main)
+
+Download the .apk file
+
+🧱 Folder Structure
+lua
+Copy
+Edit
+.github/
+└── workflows/
+    ├── android-dev.yml
+    ├── android-stage.yml
+    └── android-prod.yml
+
+app/
+└── build.gradle       <-- contains flavor configs
+🧪 Android Product Flavors Used
+Your app/build.gradle includes:
+
+groovy
+Copy
+Edit
+flavorDimensions "version"
+productFlavors {
+    dev {
+        applicationIdSuffix ".dev"
+        versionNameSuffix "-dev"
+    }
+    stage {
+        applicationIdSuffix ".stage"
+        versionNameSuffix "-stage"
+    }
+    prod {
+        // Production flavor
+    }
+}
+📌 Requirements
+Gradle 7.3+
+
+Java 17
+
+GitHub Actions (free for public repos)
+
+🙌 Credits
+This setup was built and maintained by Ashique Antony.
+
+
