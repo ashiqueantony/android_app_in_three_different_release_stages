@@ -1,0 +1,28 @@
+name: Android CI - Stage
+
+on:
+  push:
+    branches:
+      - stage
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - run: chmod +x ./gradlew
+
+      - run: ./gradlew assembleStageRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage-apk
+          path: app/build/outputs/apk/stage/release/*.apk
+
