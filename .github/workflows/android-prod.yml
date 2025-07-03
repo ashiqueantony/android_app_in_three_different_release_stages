@@ -10,19 +10,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ✅ Checkout the repo
       - uses: actions/checkout@v4
 
-      # ✅ Set up JDK 17 (required for Android builds)
       - uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # ✅ Make Gradle wrapper executable
       - run: chmod +x ./gradlew
 
-      # ✅ Extract versionName from build.gradle
+      # ✅ Extract versionName
       - name: Extract versionName
         id: version
         run: |
@@ -30,12 +27,20 @@ jobs:
           echo "VERSION_NAME=$VERSION_NAME"
           echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
 
-      # ✅ Build prod APK
-      - name: Build APK
-        run: ./gradlew assembleProdRelease
+      # ✅ Calculate versionCode as commit count
+      - name: Generate versionCode
+        id: versioncode
+        run: |
+          VERSION_CODE=$(git rev-list --count HEAD)
+          echo "VERSION_CODE=$VERSION_CODE"
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
 
-      # ✅ Create Git Tag (v1.0)
-      - name: Create Git Tag
+      # ✅ Build the prod APK using injected versionCode
+      - name: Build APK
+        run: ./gradlew assembleProdRelease -PVERSION_CODE=${{ steps.versioncode.outputs.version_code }}
+
+      # ✅ Create Git tag like v1.1
+      - name: Tag & Push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -43,7 +48,7 @@ jobs:
           git push origin v${{ steps.version.outputs.version_name }} || true
 
       # ✅ Create GitHub Release and upload APK
-      - name: Create GitHub Release
+      - name: GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.version_name }}
