@@ -10,44 +10,67 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ✅ Checkout the repo
       - uses: actions/checkout@v4
 
-      # ✅ Set up JDK 17 (required for Android builds)
       - uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # ✅ Make Gradle wrapper executable
       - run: chmod +x ./gradlew
 
-      # ✅ Extract versionName from build.gradle
-      - name: Extract versionName
-        id: version
+      # ✅ Auto-bump versionName in app/build.gradle
+      - name: Bump versionName
+        id: version_bump
         run: |
-          VERSION_NAME=$(grep versionName app/build.gradle | head -1 | awk -F'"' '{ print $2 }')
-          echo "VERSION_NAME=$VERSION_NAME"
-          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          FILE=app/build.gradle
+          CURRENT_VERSION=$(grep versionName $FILE | head -1 | awk -F\" '{ print $2 }')
+          echo "Current version: $CURRENT_VERSION"
 
-      # ✅ Build prod APK
-      - name: Build APK
-        run: ./gradlew assembleProdRelease
+          # Extract major and minor
+          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+          MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
 
-      # ✅ Create Git Tag (v1.0)
-      - name: Create Git Tag
+          # Increment minor version
+          NEW_VERSION="$MAJOR.$((MINOR + 1))"
+          echo "New version: $NEW_VERSION"
+
+          # Replace in file
+          sed -i "s/versionName \"$CURRENT_VERSION\"/versionName \"$NEW_VERSION\"/" $FILE
+          echo "version_name=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      # ✅ Commit updated build.gradle with new versionName
+      - name: Commit version bump
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag v${{ steps.version.outputs.version_name }} || true
-          git push origin v${{ steps.version.outputs.version_name }} || true
+          git add app/build.gradle
+          git commit -m "🔖 Bump versionName to ${{ steps.version_bump.outputs.version_name }}"
+          git push origin main
 
-      # ✅ Create GitHub Release and upload APK
-      - name: Create GitHub Release
+      # ✅ Generate versionCode from commit count
+      - name: Generate versionCode
+        id: versioncode
+        run: |
+          VERSION_CODE=$(git rev-list --count HEAD)
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+
+      # ✅ Build APK with injected versionCode
+      - name: Build APK
+        run: ./gradlew assembleProdRelease -PVERSION_CODE=${{ steps.versioncode.outputs.version_code }}
+
+      # ✅ Create Git Tag
+      - name: Tag & Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v${{ steps.version_bump.outputs.version_name }} || true
+          git push origin v${{ steps.version_bump.outputs.version_name }} || true
+
+      # ✅ Create GitHub Release
+      - name: GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.version.outputs.version_name }}
-          name: "Release v${{ steps.version.outputs.version_name }}"
-          files: app/build/outputs/apk/stage/release/*.apk
-
-
+          tag_name: v${{ steps.version_bump.outputs.version_name }}
+          name: "Release v${{ steps.version_bump.outputs.version_name }}"
+          files: app/build/outputs/apk/prod/release/*.apk
